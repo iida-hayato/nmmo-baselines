@@ -7,7 +7,6 @@ import pufferlib
 import pufferlib.emulation
 import pufferlib.models
 
-import nmmo
 from nmmo.entity.entity import EntityState
 
 EntityId = EntityState.State.attr_name_to_col["id"]
@@ -67,7 +66,7 @@ class Baseline(pufferlib.models.Policy):
 
     task = self.task_encoder(env_outputs["Task"])
 
-    obs = torch.cat([tile,player_embeddings, my_agent, inventory, market, task], dim=-1)
+    obs = torch.cat([tile, my_agent, inventory, market, task], dim=-1)
     obs = self.proj_fc(obs)
 
     return obs, (
@@ -261,19 +260,19 @@ class ActionDecoder(torch.nn.Module):
   def forward(self, hidden, lookup):
     (
         player_embeddings,
-        my_agent,
         inventory_embeddings,
         market_embeddings,
         action_targets,
     ) = lookup
+    print(lookup)
 
     embeddings = {
         "attack_target": player_embeddings,
         "market_buy": market_embeddings,
         "inventory_destroy": inventory_embeddings,
         "inventory_give_item": inventory_embeddings,
-        "inventory_give_player": my_agent,
-        "gold_target": my_agent,
+        "inventory_give_player": player_embeddings,
+        "gold_target": player_embeddings,
         "inventory_sell": inventory_embeddings,
         "inventory_use": inventory_embeddings,
     }
