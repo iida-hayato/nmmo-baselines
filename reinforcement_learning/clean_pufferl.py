@@ -458,7 +458,7 @@ class CleanPuffeRL:
         batch_rows=32,
         update_epochs=4,
         bptt_horizon=16,
-        gamma=0.99,
+        gamma=0.999,
         gae_lambda=0.95,
         anneal_lr=True,
         norm_adv=True,
