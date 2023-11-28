@@ -232,6 +232,7 @@ class TaskEncoder(torch.nn.Module):
 class ActionDecoder(torch.nn.Module):
   def __init__(self, input_size, hidden_size):
     super().__init__()
+    self.lstm = torch.nn.LSTM(input_size, 256, batch_first=True)
     self.layers = torch.nn.ModuleDict(
         {
             "attack_style": torch.nn.Linear(hidden_size, 3),
@@ -267,6 +268,7 @@ class ActionDecoder(torch.nn.Module):
         action_targets,
     ) = lookup
 
+    lstm_out, (h_n, c_n) = self.lstm(hidden)
     embeddings = {
         "attack_target": player_embeddings,
         "market_buy": market_embeddings,
@@ -303,7 +305,6 @@ class ActionDecoder(torch.nn.Module):
         zeros = torch.zeros([b, 1, f], dtype=embs.dtype, device=embs.device)
         embs = torch.cat([embs, zeros], dim=1)
 
-      action = self.apply_layer(layer, embs, mask, hidden)
+      action = self.apply_layer(layer, embs, mask, lstm_out)
       actions.append(action)
-
     return actions
