@@ -89,8 +89,9 @@ class TileEncoder(torch.nn.Module):
     self.embedding = torch.nn.Embedding(3 * 256, 32)
 
     self.tile_conv_1 = torch.nn.Conv2d(96, 32, 3)
-    self.tile_conv_2 = torch.nn.Conv2d(32, 8, 3)
-    self.tile_fc = torch.nn.Linear(8 * 11 * 11, input_size)
+    self.tile_conv_1_2 = torch.nn.Conv2d(32, 16, 3)
+    self.tile_conv_2 = torch.nn.Conv2d(16, 8, 3)
+    self.tile_fc = torch.nn.Linear(8 * 9 * 9, input_size)
 
   def forward(self, tile):
     tile[:, :, :2] -= tile[:, 112:113, :2].clone()
@@ -107,6 +108,7 @@ class TileEncoder(torch.nn.Module):
     )
 
     tile = F.relu(self.tile_conv_1(tile))
+    tile = F.relu(self.tile_conv_1_2(tile))
     tile = F.relu(self.tile_conv_2(tile))
     tile = tile.contiguous().view(agents, -1)
     tile = F.relu(self.tile_fc(tile))
@@ -264,7 +266,6 @@ class ActionDecoder(torch.nn.Module):
         market_embeddings,
         action_targets,
     ) = lookup
-    print(lookup)
 
     embeddings = {
         "attack_target": player_embeddings,
