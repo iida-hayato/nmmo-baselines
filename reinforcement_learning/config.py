@@ -29,8 +29,8 @@ class Config:
     max_opponent_policies = 0  # Maximum number of opponent policies to train against
     eval_num_policies = 2 # Number of policies to use for evaluation
     eval_num_rounds = 1 # Number of rounds to use for evaluation
-    wandb_project = None  # WandB project name
-    wandb_entity = None  # WandB entity name
+    wandb_project = "nmmo_curriculum"  # WandB project name
+    wandb_entity = "iicyan"  # WandB entity name
 
     # PPO Args
     bptt_horizon = 8  # Train on this number of steps of a rollout at a time. Used to reduce GPU memory.
