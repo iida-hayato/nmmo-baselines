@@ -10,7 +10,7 @@ import torch
 import numpy as np
 from nmmo.task import task_spec as ts
 from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 
 def extract_module_fn(module: ModuleType):
@@ -37,11 +37,14 @@ class TaskEncoder:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.tokenizer = AutoTokenizer.from_pretrained(checkpoint, trust_remote_code=True)
         self.tokenizer.pad_token = self.tokenizer.eos_token
+        quantization_config = BitsAndBytesConfig(llm_int8_enable_fp32_cpu_offload=True)
         if self.device == "cuda":
             self.model = AutoModelForCausalLM.from_pretrained(checkpoint,
+                                                              offload_folder="./offload_folder",
                                                               trust_remote_code=True,
                                                               device_map="auto",
-                                                              load_in_8bit=True)
+                                                              load_in_8bit=True,
+                                                              quantization_config=quantization_config)
         else:
             self.model = AutoModelForCausalLM.from_pretrained(checkpoint,
                                                               trust_remote_code=True).to(self.device)
