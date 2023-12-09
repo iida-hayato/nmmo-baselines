@@ -100,10 +100,10 @@ def PracticeEating(gs, subject, num_tick):
 
 
 def TravelWithTick(gs, subject, dist, num_tick):
-  DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick)
+  return norm(DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick))
 
-  for w in range(1, 10):
-    curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": w * 10}, sampling_weight=w))
+for w in range(1, 10):
+  curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": w * 10}, sampling_weight=w))
 
 
 def PracticeDrinking(gs, subject):
