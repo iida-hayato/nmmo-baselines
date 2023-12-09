@@ -33,12 +33,20 @@ from nmmo.task.base_predicates import (
   ScoreHit,
   SpendGold,
   TickGE, FullyArmed,
+  DistanceTraveled,
 )
 from nmmo.task.task_spec import TaskSpec, check_task_spec
+from nmmo.task.group import Group
+from nmmo.task.game_state import GameState
 
 EVENT_NUMBER_GOAL = [1, 2, 3, 5, 7, 9, 12, 15, 20, 30, 50]
 INFREQUENT_GOAL = list(range(1, 10))
-STAY_ALIVE_GOAL = EXP_GOAL = [50, 100, 150, 200, 300, 500, 700]
+EXP_GOAL = [10, 20, 30, 40, 50, 100, 150, 200, 300, 500, 700]
+STAY_ALIVE_GOAL = [200, 225, 250, 275,
+                    300, 400, 600, 800, 1000]
+
+STAY_ALIVE_GOAL1 = [25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100, 125, 150, 175, ]
+
 LEVEL_GOAL = list(range(2, 10))  # TODO: get config
 AGENT_NUM_GOAL = ITEM_NUM_GOAL = [1, 2, 3, 4, 5]  # competition team size: 8
 SKILLS = c.combat_skills + c.harvest_skills
@@ -67,7 +75,14 @@ most_essentials = [
 ]
 
 
-def PracticeEating(gs, subject):
+def TickGEMod(gs: GameState, subject: Group, mod: int, num_tick: int):
+  """True if the current tick is greater than or equal to the specified num_tick.
+  Is progress counter.
+  """
+  return norm((gs.current_tick % mod) / num_tick)
+
+
+def PracticeEating(gs, subject, num_tick):
   """The progress, the max of which is 1, should
   * increase small for each eating
   * increase big for the 1st and 3rd eating
@@ -75,10 +90,20 @@ def PracticeEating(gs, subject):
   """
   num_eat = len(subject.event.EAT_FOOD)
   progress = num_eat * 0.06
-  return norm(progress)  # norm is a helper function to normalize the value to [0, 1]
+  if num_eat >= 10:
+    progress += 0.1
+  if num_eat >= 30:
+    progress += 0.3
+  return norm(
+    progress * TickGEMod(gs, subject, mod=100,
+                         num_tick=num_tick % 100))  # norm is a helper function to normalize the value to [0, 1]
 
 
-curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={}, sampling_weight=100))
+def TravelWithTick(gs, subject, dist, num_tick):
+  DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick)
+
+  for w in range(1, 10):
+    curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": w * 10}, sampling_weight=w))
 
 
 def PracticeDrinking(gs, subject):
@@ -87,7 +112,7 @@ def PracticeDrinking(gs, subject):
   return norm(progress)
 
 
-curriculum.append(TaskSpec(eval_fn=PracticeDrinking, eval_fn_kwargs={}, sampling_weight=100))
+curriculum.append(TaskSpec(eval_fn=PracticeDrinking, eval_fn_kwargs={}, sampling_weight=10))
 
 # for event_code in most_essentials:
 #   for cnt in range(1, 200):
@@ -142,14 +167,20 @@ for event_code in item_skills:
     for cnt in INFREQUENT_GOAL
   ]  # less than 10
 
-for resource in {m.Water, m.Foilage}:
+for resource in {m.Foilage}:
   curriculum.append(
     TaskSpec(
       eval_fn=CanSeeTile,
       eval_fn_kwargs={"tile_type": resource},
-      sampling_weight=80,
+      sampling_weight=8,
     )
   )
+for i in range(1, 10):
+  curriculum.append(TaskSpec(
+    eval_fn=TravelWithTick,
+    eval_fn_kwargs={"dist": i * 5, "num_tick": i * 10},
+    sampling_weight=i
+  ))
 
 # find resource tiles
 for resource in m.Harvestable:
@@ -194,13 +225,18 @@ for skill in SKILLS:
 # i.e., getting incremental reward for each tick alive as an individual or a team
 for num_tick in STAY_ALIVE_GOAL:
   curriculum.append(
-    TaskSpec(eval_fn=TickGE, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=norm(num_tick / 1000) * 100)
+    TaskSpec(eval_fn=TickGE, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=100)
+  )
+
+for num_tick in STAY_ALIVE_GOAL1:
+  curriculum.append(
+    TaskSpec(eval_fn=TickGE, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=10 + num_tick // 5)
   )
 
 # occupy the center tile, assuming the Medium map size
 # TODO: it'd be better to have some intermediate targets toward the center
-curriculum.append(TaskSpec(eval_fn=OccupyTile,
-                           eval_fn_kwargs={"row": 16, "col": 16}))
+# curriculum.append(TaskSpec(eval_fn=OccupyTile,
+#                            eval_fn_kwargs={"row": 16, "col": 16}))
 
 # find the other team leader
 for target in ["left_team_leader", "right_team_leader"]:
