@@ -79,7 +79,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
     from curriculum_generation import manual_curriculum
     if use_elm:
         from curriculum_generation.elm import OpenELMTaskGenerator
-        NUM_SEED_TASKS = 20
+        NUM_SEED_TASKS = 200
         NUM_NEW_TASKS = 5
         ELM_DEBUG = True
 

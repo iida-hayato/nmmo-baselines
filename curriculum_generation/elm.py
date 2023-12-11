@@ -143,7 +143,7 @@ def sample_parameter(key, type_hint):
         "event": lambda: np.random.choice(EVENT_NAME),
         "N": lambda: round(1 + np.random.gamma(1, 3)),
         "tile_type": lambda: np.random.choice(list(Harvestable)),
-        "num_tick": lambda: round(np.random.gamma(10, 20)),
+        "num_tick": lambda: round(np.random.gamma(10, 200)),
         "target": lambda: np.random.choice(TARGET),
         "row": lambda: round(80 + np.random.randn() * 15),
         "col": lambda: round(80 + np.random.randn() * 15),

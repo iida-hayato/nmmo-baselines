@@ -11,6 +11,7 @@ from nmmo.task import constraint as c
 from nmmo.task.base_predicates import (
   norm,
   count,
+  StayAlive,
   AttainSkill,
   BuyItem,
   CanSeeAgent,
@@ -74,11 +75,22 @@ most_essentials = [
 ]
 
 
-def TickTargert(gs: GameState, subject: Group, num_tick_from: int, num_tick: int):
+def AliveTick(gs: GameState, subject: Group, num_tick: int):
   """True if the current tick is greater than or equal to the specified num_tick.
-  Is progress counter.
+  Is progress counter.And agent is alive.
+  Lose when agents are dead.
   """
-  return norm((gs.current_tick - num_tick_from) / (num_tick - num_tick_from))
+  max_agents = 8
+  return norm(count(subject.health > 0) / max_agents * (gs.current_tick / num_tick))
+
+
+def AliveTickTargert(gs: GameState, subject: Group, num_tick_from: int, num_tick: int):
+  """True if the current tick is greater than or equal to the specified num_tick.
+  Is progress counter. And agent is alive.
+  Lose when agents are dead.
+  """
+  max_agents = 8
+  return norm((gs.current_tick - num_tick_from) / (num_tick - num_tick_from) * count(subject.health > 0) / max_agents)
 
 
 def TickGEMod(gs: GameState, subject: Group, mod: int, num_tick: int):
@@ -88,36 +100,53 @@ def TickGEMod(gs: GameState, subject: Group, mod: int, num_tick: int):
   return norm((gs.current_tick % mod) / num_tick)
 
 
+def TravelWithTick(gs, subject, dist, num_tick):
+  """Agents travel a certain distance. After num_tick, the agent will be rewarded."""
+  return norm(DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick))
+
+
+curriculum.append(TaskSpec(
+  eval_fn=DistanceTraveled,
+  eval_fn_kwargs={"dist": 9},
+  sampling_weight=5
+))
+
 # stay alive ... like ... for 300 ticks
 # i.e., getting incremental reward for each tick alive as an individual or a team
 for num_tick in STAY_ALIVE_GOAL:
   curriculum.append(
-    TaskSpec(eval_fn=TickGE, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=100)
+    TaskSpec(eval_fn=AliveTick, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=10)
   )
 
 for num_tick in STAY_ALIVE_GOAL1:
   curriculum.append(
-    TaskSpec(eval_fn=TickTargert, eval_fn_kwargs={"num_tick_from": 25, "num_tick": num_tick},
-             sampling_weight=100 + num_tick)
+    TaskSpec(eval_fn=AliveTickTargert, eval_fn_kwargs={"num_tick_from": 25, "num_tick": num_tick},
+             sampling_weight=10 + num_tick // 10)
   )
 
 
 def PracticeEating(gs, subject, num_tick):
-  """The progress, the max of which is 1, should
-  * increase small for each eating
-  * increase big for the 1st and 3rd eating
-  * reach 1 with 10 eatings
+  """
+  Reward agents for eating food.
+  This is most important for survival.
   """
   num_eat = len(subject.event.EAT_FOOD)
-  progress = num_eat * 0.06
-  return norm(progress)  # norm is a helper function to normalize the value to [0, 1]
+  progress = num_eat * 0.1
+  if num_eat > 3:
+    progress += 0.1
+  if num_eat > 5:
+    progress += 0.2
+  return norm(progress)
 
 
-# for w in range(1, 10):
-curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": 10}, sampling_weight=10))
+for w in [0, 1, 2, 3]:
+  curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": w * 10}, sampling_weight=10))
 
 
 def PracticeDrinking(gs, subject):
+  """
+  Reward agents for drinking water
+  """
   num_drink = len(subject.event.DRINK_WATER)
   progress = num_drink * 0.06
   return norm(progress)
@@ -125,8 +154,17 @@ def PracticeDrinking(gs, subject):
 
 curriculum.append(TaskSpec(eval_fn=PracticeDrinking, eval_fn_kwargs={}, sampling_weight=10))
 
-def TravelWithTick(gs, subject, dist, num_tick):
-  return norm(DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick))
+for resource in {m.Foilage}:
+  curriculum.append(
+    TaskSpec(
+      eval_fn=CanSeeTile,
+      eval_fn_kwargs={"tile_type": resource},
+      sampling_weight=8,
+    )
+  )
+
+curriculum.append(TaskSpec(eval_fn=StayAlive, eval_fn_kwargs={}, sampling_weight=10))
+
 
 # for event_code in most_essentials:
 #   for cnt in range(1, 200):
@@ -190,21 +228,6 @@ for event_code in item_skills:
       "event": event_code, "N": cnt, "num_tick": 50}, sampling_weight=1)
     for cnt in INFREQUENT_GOAL
   ]  # less than 10
-
-for resource in {m.Foilage}:
-  curriculum.append(
-    TaskSpec(
-      eval_fn=CanSeeTile,
-      eval_fn_kwargs={"tile_type": resource},
-      sampling_weight=8,
-    )
-  )
-for i in range(1, 10):
-  curriculum.append(TaskSpec(
-    eval_fn=TravelWithTick,
-    eval_fn_kwargs={"dist": i * 5, "num_tick": i * 10},
-    sampling_weight=i
-  ))
 
 
 def CanSeeTileWithTick(gs, subject, num_tick, tile_type: str):
@@ -352,6 +375,7 @@ for amount in EVENT_NUMBER_GOAL:
 def PracticeInventoryManagement(gs, subject, space, num_tick):
   return InventorySpaceGE(gs, subject, space) * TickGE(gs, subject, num_tick)
 
+
 def FullyArmedWithTick(gs, subject, num_tick, combat_style: str, level: int, num_agent: int):
   return norm(FullyArmed(gs, subject, combat_style, level, num_agent) * TickGE(gs, subject, num_tick=num_tick))
 
@@ -373,8 +397,10 @@ for space in [2, 4, 8]:
     for num_tick in STAY_ALIVE_GOAL
   ]
 
+
 def OwnItemWithTick(gs, subject, num_tick, item: type[Item], level: int, quantity: int):
   return norm(OwnItem(gs, subject, item, level, quantity) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # own item, evaluated on the current inventory
 for item in ALL_ITEM:
@@ -395,8 +421,10 @@ for item in ALL_ITEM:
           )
         )
 
+
 def EquipItemWithTick(gs, subject, num_tick, item: type[Item], level: int, num_agent: int):
   return norm(EquipItem(gs, subject, item, level, num_agent) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # equip item, evaluated on the current inventory and equipment status
 for item in EQUIP_ITEM:
@@ -405,13 +433,15 @@ for item in EQUIP_ITEM:
     curriculum.append(
       TaskSpec(
         eval_fn=EquipItemWithTick,
-        eval_fn_kwargs={"item": item, "level": level, "num_agent": 1,"num_tick": 50},
+        eval_fn_kwargs={"item": item, "level": level, "num_agent": 1, "num_tick": 50},
         sampling_weight=4 - level if level < 4 else 1,
       )
     )
 
+
 def ConsumeItemWithTick(gs, subject, num_tick, item: type[Item], level: int, quantity: int):
   return norm(ConsumeItem(gs, subject, item, level, quantity) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # consume items (ration, potion), evaluated based on the event log
 for item in c.consumables:
@@ -432,8 +462,10 @@ for item in c.consumables:
           )
         )
 
+
 def HarvestItemWithTick(gs, subject, num_tick, item: type[Item], level: int, quantity: int):
   return norm(HarvestItem(gs, subject, item, level, quantity) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # harvest items, evaluated based on the event log
 for item in HARVEST_ITEM:
@@ -453,8 +485,11 @@ for item in HARVEST_ITEM:
             sampling_weight=4 - level if level < 4 else 1,
           )
         )
+
+
 def ListItemWithTick(gs, subject, num_tick, item: type[Item], level: int, quantity: int):
   return norm(ListItem(gs, subject, item, level, quantity) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # list items, evaluated based on the event log
 for item in ALL_ITEM:
@@ -475,8 +510,10 @@ for item in ALL_ITEM:
           )
         )
 
+
 def BuyItemWithTick(gs, subject, num_tick, item: type[Item], level: int, quantity: int):
   return norm(BuyItem(gs, subject, item, level, quantity) * TickGE(gs, subject, num_tick=num_tick))
+
 
 # buy items, evaluated based on the event log
 for item in ALL_ITEM:
