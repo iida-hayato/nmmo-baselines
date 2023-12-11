@@ -76,8 +76,8 @@ def curriculum_generation_track(trainer, args, use_elm=True):
     from curriculum_generation.task_encoder import TaskEncoder
     LLM_CHECKPOINT = "Salesforce/codegen25-7b-instruct"
 
+    from curriculum_generation import manual_curriculum
     if use_elm:
-        from curriculum_generation import manual_curriculum
         from curriculum_generation.elm import OpenELMTaskGenerator
         NUM_SEED_TASKS = 20
         NUM_NEW_TASKS = 5
@@ -103,7 +103,8 @@ def curriculum_generation_track(trainer, args, use_elm=True):
     else:
         from curriculum_generation import curriculum_tutorial  # custom tutorial
         task_encoder = TaskEncoder(LLM_CHECKPOINT, curriculum_tutorial, batch_size=2)
-        curriculum = curriculum_tutorial.curriculum
+        # curriculum = curriculum_tutorial.curriculum
+        curriculum = manual_curriculum.curriculum
 
     # Use the train_task_spec to train agents
     task_encoder.get_task_embedding(curriculum, save_to_file=CUSTOM_CURRICULUM_FILE)
