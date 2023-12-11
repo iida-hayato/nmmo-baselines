@@ -146,7 +146,7 @@ def DefeatEntityWithTick(gs, subject, num_tick, agent_type: str, level: int, num
 for level in range(0, 10):
   curriculum.append(
     TaskSpec(
-      eval_fn=DefeatEntity,
+      eval_fn=DefeatEntityWithTick,
       eval_fn_kwargs={"agent_type": "npc", 'level': level, "num_agent": 20 - level, "num_tick": 50},
       sampling_weight=50 - level * 2,
     )
@@ -297,7 +297,7 @@ for target in ["left_team_leader", "right_team_leader"]:
   curriculum.append(TaskSpec(eval_fn=CanSeeAgentWithTick,
                              eval_fn_kwargs={"target": target, "num_tick": 50}))
 
-curriculum.append(TaskSpec(eval_fn=AllMembersWithinRange,
+curriculum.append(TaskSpec(eval_fn=AllMembersWithinRangeWithTick,
                            eval_fn_kwargs={"dist": 9, "num_tick": 50}))
 
 # find the other team (any agent)
