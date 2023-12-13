@@ -46,7 +46,7 @@ class LearnableTaskSampler:
 
     def get_learnable_tasks(self, num_tasks,
                                max_completed = 0.8, # filter out easy tasks
-                               min_completed = 0.05, # filter out harder tasks
+                               min_completed = 0.01, # filter out harder tasks
                                min_rcnt_rate = 0.1, # reward signal generating
     ) -> List[ts.TaskSpec]:
         learnable = []

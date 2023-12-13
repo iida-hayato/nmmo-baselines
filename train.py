@@ -79,7 +79,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
     from curriculum_generation import manual_curriculum
     if use_elm:
         from curriculum_generation.elm import OpenELMTaskGenerator
-        NUM_SEED_TASKS = 200
+        NUM_SEED_TASKS = 10
         NUM_NEW_TASKS = 5
         ELM_DEBUG = True
 
@@ -87,7 +87,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
         task_generator = OpenELMTaskGenerator(manual_curriculum.curriculum, LLM_CHECKPOINT)
 
         # Generating new tasks and evaluating all candidate training tasks
-        for _ in range(3):
+        for _ in range(100):
             # NOTE: adjust NUM_SEED_TASKS to fit your gpu
             seed_task_list = task_generator.sample_tasks(NUM_SEED_TASKS, random_ratio=1)
             new_task_list = task_generator.evolve_tasks(seed_task_list, NUM_NEW_TASKS, debug=ELM_DEBUG)

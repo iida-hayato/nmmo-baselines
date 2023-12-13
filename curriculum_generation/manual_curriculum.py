@@ -39,6 +39,7 @@ from nmmo.task.base_predicates import (
 from nmmo.task.task_spec import TaskSpec, check_task_spec
 from nmmo.task.group import Group
 from nmmo.task.game_state import GameState
+from nmmo.lib import utils
 
 EVENT_NUMBER_GOAL = [1, 2, 3, 5, 7, 9, 12, 15, 20, 30, 50]
 INFREQUENT_GOAL = list(range(1, 10))
@@ -81,7 +82,17 @@ def AliveTick(gs: GameState, subject: Group, num_tick: int):
   Lose when agents are dead.
   """
   max_agents = 8
-  return norm(count(subject.health > 0) / max_agents * (gs.current_tick / num_tick))
+  rewardPerAgent = count(subject.health > 0) / max_agents * 0.01  # 0.01~0.00125
+  reward = rewardPerAgent * gs.current_tick
+  if (gs.current_tick >= 25):
+    reward += 0.1 + rewardPerAgent * 20
+  if (gs.current_tick >= 30):
+    reward += 0.1 + rewardPerAgent * 20
+  if (gs.current_tick >= 50):
+    reward += 0.1 + rewardPerAgent * 20
+  if (gs.current_tick >= 70):
+    reward += 0.1 + rewardPerAgent * 20
+  return norm(reward)
 
 
 def AliveTickTargert(gs: GameState, subject: Group, num_tick_from: int, num_tick: int):
@@ -105,42 +116,85 @@ def TravelWithTick(gs, subject, dist, num_tick):
   return norm(DistanceTraveled(gs, subject, dist) * TickGE(gs, subject, num_tick=num_tick))
 
 
-curriculum.append(TaskSpec(
-  eval_fn=DistanceTraveled,
-  eval_fn_kwargs={"dist": 9},
-  sampling_weight=5
-))
+def FirstDistanceTraveled(gs: GameState, subject: Group, dist: int):
+  """True if the summed l-inf distance between each agent's current pos and spawn pos
+        is greater than or equal to the specified _dist.
+  """
+  if not any(subject.health > 0):
+    return False
+  r = subject.row
+  c = subject.col
+  dists = utils.linf(list(zip(r, c)), [gs.spawn_pos[id_] for id_ in subject.entity.id])
+  distance = dists.sum()
+  reward = 0 if distance == 0 else max(0.06, distance / dist)
+  if distance >= dist / 6:
+    reward += 0.1
+  if distance >= dist / 3:
+    reward += 0.1
+  if distance >= dist * 2 / 3:
+    reward += 0.1
+  return norm(reward)
 
-# stay alive ... like ... for 300 ticks
-# i.e., getting incremental reward for each tick alive as an individual or a team
-for num_tick in STAY_ALIVE_GOAL:
-  curriculum.append(
-    TaskSpec(eval_fn=AliveTick, eval_fn_kwargs={"num_tick": num_tick}, sampling_weight=10)
-  )
 
-for num_tick in STAY_ALIVE_GOAL1:
-  curriculum.append(
-    TaskSpec(eval_fn=AliveTickTargert, eval_fn_kwargs={"num_tick_from": 25, "num_tick": num_tick},
-             sampling_weight=10 + num_tick // 10)
-  )
-
-
-def PracticeEating(gs, subject, num_tick):
+def PracticeEating(gs, subject, target_eat_num):
   """
   Reward agents for eating food.
   This is most important for survival.
   """
   num_eat = len(subject.event.EAT_FOOD)
-  progress = num_eat * 0.1
-  if num_eat > 3:
+  progress = num_eat * 0.01
+  if subject.entity.food <= 75:
     progress += 0.1
-  if num_eat > 5:
+  if subject.entity.food <= 50:
     progress += 0.2
+  if subject.entity.food <= 25:
+    progress += 0.3
   return norm(progress)
 
+def CanSeeTileWithTick(gs, subject, num_tick, tile_type: str):
+  if(gs.current_tick > num_tick):
+    return norm(CanSeeTile(gs, subject, tile_type))
+  return norm(CanSeeTile(gs, subject, tile_type) * 0.01)
 
-for w in [0, 1, 2, 3]:
-  curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"num_tick": w * 10}, sampling_weight=10))
+
+def CanSeeTileWithHunger(gs, subject, tile_type: str):
+  if(CanSeeTile(gs, subject, tile_type) > 0.5):
+    return 0.01
+  if(subject.entity.food < 50):
+    return norm(CanSeeTile(gs, subject, tile_type))
+
+
+for i in range(1, 3):
+  curriculum.append(TaskSpec(eval_fn=PracticeEating, eval_fn_kwargs={"target_eat_num": i * 10}, sampling_weight=10 + i))
+
+curriculum.append(TaskSpec(
+  eval_fn=AliveTick,
+  eval_fn_kwargs={},
+  sampling_weight=10
+))
+
+curriculum.append(TaskSpec(
+  eval_fn=FirstDistanceTraveled,
+  eval_fn_kwargs={"dist": 9},
+  sampling_weight=5
+))
+curriculum.append(TaskSpec(
+  eval_fn=FirstDistanceTraveled,
+  eval_fn_kwargs={"dist": 25},
+  sampling_weight=5
+))
+
+curriculum.append(TaskSpec(
+  eval_fn=FirstDistanceTraveled,
+  eval_fn_kwargs={"dist": 60},
+  sampling_weight=5
+))
+
+curriculum.append(TaskSpec(
+  eval_fn=FirstDistanceTraveled,
+  eval_fn_kwargs={"dist": 120},
+  sampling_weight=5
+))
 
 
 def PracticeDrinking(gs, subject):
@@ -157,11 +211,20 @@ curriculum.append(TaskSpec(eval_fn=PracticeDrinking, eval_fn_kwargs={}, sampling
 for resource in {m.Foilage}:
   curriculum.append(
     TaskSpec(
-      eval_fn=CanSeeTile,
+      eval_fn=CanSeeTileWithHunger,
       eval_fn_kwargs={"tile_type": resource},
       sampling_weight=8,
     )
   )
+
+# for resource in {m.Foilage}:
+#   curriculum.append(
+#     TaskSpec(
+#       eval_fn=CanSeeTileWithTick,
+#       eval_fn_kwargs={"tile_type": resource, "num_tick": 20},
+#       sampling_weight=8,
+#     )
+#   )
 
 curriculum.append(TaskSpec(eval_fn=StayAlive, eval_fn_kwargs={}, sampling_weight=10))
 
@@ -230,8 +293,6 @@ for event_code in item_skills:
   ]  # less than 10
 
 
-def CanSeeTileWithTick(gs, subject, num_tick, tile_type: str):
-  return norm(CanSeeTile(gs, subject, tile_type) * TickGE(gs, subject, num_tick=num_tick))
 
 
 # find resource tiles
