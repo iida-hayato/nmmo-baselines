@@ -79,7 +79,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
     from curriculum_generation import manual_curriculum
     if use_elm:
         from curriculum_generation.elm import OpenELMTaskGenerator
-        NUM_SEED_TASKS = 10
+        NUM_SEED_TASKS = 5
         NUM_NEW_TASKS = 5
         ELM_DEBUG = True
 
@@ -87,7 +87,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
         task_generator = OpenELMTaskGenerator(manual_curriculum.curriculum, LLM_CHECKPOINT)
 
         # Generating new tasks and evaluating all candidate training tasks
-        for _ in range(100):
+        for _ in range(3):
             # NOTE: adjust NUM_SEED_TASKS to fit your gpu
             seed_task_list = task_generator.sample_tasks(NUM_SEED_TASKS, random_ratio=1)
             new_task_list = task_generator.evolve_tasks(seed_task_list, NUM_NEW_TASKS, debug=ELM_DEBUG)
@@ -101,8 +101,7 @@ def curriculum_generation_track(trainer, args, use_elm=True):
         curriculum = task_generator.sample_tasks(NUM_SEED_TASKS*3, random_ratio=0.3) # NOTE: arbitrary numbers
 
     else:
-        from curriculum_generation import curriculum_tutorial  # custom tutorial
-        task_encoder = TaskEncoder(LLM_CHECKPOINT, curriculum_tutorial, batch_size=2)
+        task_encoder = TaskEncoder(LLM_CHECKPOINT, manual_curriculum, batch_size=2)
         # curriculum = curriculum_tutorial.curriculum
         curriculum = manual_curriculum.curriculum
 
@@ -133,7 +132,7 @@ if __name__ == "__main__":
     elif args.track == "curriculum":
       args.tasks_path = CUSTOM_CURRICULUM_FILE
       trainer = setup_env(args)
-      curriculum_generation_track(trainer, args, use_elm=True)
+      curriculum_generation_track(trainer, args)
     else:
       raise ValueError(f"Unknown track {args.track}, must be 'rl' or 'curriculum'")
 

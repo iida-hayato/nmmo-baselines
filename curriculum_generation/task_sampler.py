@@ -63,7 +63,7 @@ class LearnableTaskSampler:
 
     def sample_tasks(self, num_tasks,
                      random_ratio = 0.5,
-                     reset_sampling_weight = True,
+                     reset_sampling_weight = False,
     ) -> List[ts.TaskSpec]:
         task_spec = []
         if 0 <= random_ratio < 1:
