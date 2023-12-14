@@ -103,9 +103,20 @@ class Postprocessor(StatPostprocessor):
         else:
             explore_bonus = min(self.clip_unique_event,
                                 self._curr_unique_count - self._prev_unique_count)
-        explore_bonus *= self.explore_bonus_weight
+        if self.epoch_length < 100:
+            explore_bonus *= self.explore_bonus_weight * 10
+        elif self.epoch_length < 200:
+            explore_bonus *= self.explore_bonus_weight * 2
+        else:
+            explore_bonus *= self.explore_bonus_weight * 0.5
 
-        reward = reward + explore_bonus + healing_bonus + meander_bonus
+        hunger_bonus = 0.1
+        if self.agent_id in self.env.realm.players:
+            if self.env.realm.players[self.agent_id].resources.food < 50:
+                hunger_bonus = 0
+
+
+        reward = reward + explore_bonus + healing_bonus + meander_bonus + hunger_bonus
 
         return reward, done, info
 
