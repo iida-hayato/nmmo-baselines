@@ -4,6 +4,7 @@ import math
 import nmmo
 import pufferlib
 import pufferlib.emulation
+from nmmo.lib.log import EventCode
 
 from leader_board import StatPostprocessor, calculate_entropy
 
@@ -103,21 +104,48 @@ class Postprocessor(StatPostprocessor):
         else:
             explore_bonus = min(self.clip_unique_event,
                                 self._curr_unique_count - self._prev_unique_count)
-        if self.epoch_length < 100:
+        if self.epoch_length < 100 / 2:
             explore_bonus *= self.explore_bonus_weight * 10
-        elif self.epoch_length < 200:
+        elif self.epoch_length < 200 / 2:
             explore_bonus *= self.explore_bonus_weight * 2
         else:
-            explore_bonus *= self.explore_bonus_weight * 0.5
+            explore_bonus *= self.explore_bonus_weight
 
         hunger_bonus = 0.1
+        equip_bonus = 0
+        item_bonus = 0
+        attack_bonus = 0
+        defence_bonus = 0
+        attack_exp_bonus = 0
+        defence_exp_bonus = 0
+        battle_weight = 1 if self.epoch_length < 100 / 2 else 2
         if self.agent_id in self.env.realm.players:
             if self.env.realm.players[self.agent_id].resources.food < 50:
                 hunger_bonus = 0
+            item_level = self.env.realm.players[self.agent_id].item_level.val
+            equip_level = self.env.realm.players[self.agent_id].equipment.item_level
+            attack = max(self.env.realm.players[self.agent_id].equipment.melee_attack,
+                         self.env.realm.players[self.agent_id].equipment.range_attack,
+                         self.env.realm.players[self.agent_id].equipment.mage_attack)
+            defense = max(self.env.realm.players[self.agent_id].equipment.melee_defense,
+                          self.env.realm.players[self.agent_id].equipment.range_defense,
+                          self.env.realm.players[self.agent_id].equipment.mage_defense)
+            if item_level > 0:
+                item_bonus = item_level / 100 * 0.01 * battle_weight
+            if equip_level > 0:
+                equip_bonus = equip_level / 100 * 0.01 * battle_weight
+            if attack > 0:
+                attack_bonus = attack / 100 * 0.01 * battle_weight
+            if defense > 0:
+                defence_bonus = defense / 100 * 0.01 * battle_weight
 
 
-        reward = reward + explore_bonus + healing_bonus + meander_bonus + hunger_bonus
+        time_alive_bonus = 0
+        if self.agent_id in self.env.realm.players:
+            time_alive_bonus = max(0.01, self.env.realm.players[self.agent_id].history.time_alive.val / 1024 * 0.01)
 
+        reward = (reward + explore_bonus + healing_bonus + meander_bonus + hunger_bonus + time_alive_bonus +
+                  equip_bonus + item_bonus + attack_bonus + defence_bonus)
         return reward, done, info
 
 
